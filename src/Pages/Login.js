@@ -1,71 +1,127 @@
-// app/components/Login.js
 import React, { useState } from 'react';
-import { login, getDocument } from '../config/Firebase/Firebaseconfiguration'; // Import getDocument for Firestore data
-import { Link, useNavigate } from 'react-router-dom'; // useNavigate ko import karein
+import { Button, Form, Input, message } from 'antd';
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore"; // Firestore functions
+import { auth, db } from '../config/firebase/firebaseconfig'; // Ensure Firestore config is imported
+import { useNavigate } from 'react-router-dom';
 
-const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+function Login() {
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // useNavigate hook ko initialize karein
+  const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const onFinish = async (values) => {
+    const { email, password } = values;
     setLoading(true);
     try {
-      // Firebase login function call
-      const user = await login(email, password);
-      
-      // Firestore se user ka username retrieve karna
-      const userData = await getDocument('users', user.uid);
-      const username = userData.username;
+      // Sign in the user
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      alert(`Welcome back, ${username}`);
+      // Check user type sequentially
+      const studentDoc = await getDoc(doc(db, "student", user.uid));
+      if (studentDoc.exists()) {
+        const studentData = studentDoc.data();
+        const name = studentData.name || "Student"; // Fallback if name doesn't exist
+        message.success(`Login successful! Welcome, ${name}!`);
+        navigate('/student-dashboard');
+        return;
+      }
 
-      // Agar login successful hai toh user ko Home page pe redirect karein
-      navigate('/home'); // '/home' route par navigate karein
-    } catch (err) {
-      setError(err.message); // Agar koi error ho toh usko set karein
+      const teacherDoc = await getDoc(doc(db, "teachers", user.uid));
+      if (teacherDoc.exists()) {
+        const teacherData = teacherDoc.data();
+        const name = teacherData.name || "Teacher"; // Fallback if name doesn't exist
+        message.success(`Login successful! Welcome, ${name}!`);
+        navigate('/teacher-dashboard');
+        return;
+      }
+
+      const adminDoc = await getDoc(doc(db, "admin", user.uid));
+      if (adminDoc.exists()) {
+        const adminData = adminDoc.data();
+        const name = adminData.name || "Admin"; // Fallback if name doesn't exist
+        message.success(`Login successful! Welcome, ${name}!`);
+        navigate('/admin-dashboard');
+        return;
+      }
+
+      // If no type is found
+      throw new Error("User type not found. Please contact support.");
+    } catch (error) {
+      console.error(error);
+      message.error(error.message || "Login failed!");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="md:w-full  w-[80%] max-w-md mx-auto mt-[40%] md:mt-[10%] p-5 border rounded-lg shadow-2xl bg-gray-800 md:bg-white">
-      <h2 className="text-white md:text-black text-2xl font-bold text-center mb-4">Login</h2>
-      <form onSubmit={handleLogin}>
-        <input
-          type="email"
-          placeholder="Enter your email"
-          className="w-full p-2  mb-3 border rounded"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Enter your password"
-          className="w-full p-2 mb-3 border rounded"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button
-          type="submit"
-          className={`w-full p-2 bg-blue-600 text-white rounded ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={loading}
-        >
-          {loading ? 'Logging in...' : 'Log In'}
-        </button>
-      </form>
+  const onFinishFailed = (errorInfo) => {
+    message.error("Please check your input and try again.");
+    console.log("Failed:", errorInfo);
+  };
 
-      <div className="mt-4 text-center">
-        <p className='text-white md:text-black'>Don't have an account?</p>
-        <Link to="/signup" className="text-blue-500 hover:underline">Sign up here</Link>
-      </div>
+  return (
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <Form
+        name="login"
+        className="w-full max-w-md p-6 bg-white rounded-lg shadow-md"
+        layout="vertical"
+        onFinish={onFinish}
+        onFinishFailed={onFinishFailed}
+      >
+        <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
+
+        <Form.Item
+          label="Email"
+          name="email"
+          rules={[
+            {
+              required: true,
+              message: 'Please input your email!',
+              type: 'email',
+            },
+          ]}
+        >
+          <Input
+            placeholder="Enter your email"
+            className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </Form.Item>
+
+        <Form.Item
+          label="Password"
+          name="password"
+          rules={[
+            {
+              required: true,
+              message: 'Please input your password!',
+            },
+          ]}
+        >
+          <Input.Password
+            placeholder="Enter your password"
+            className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </Form.Item>
+
+        <Form.Item>
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            loading={loading}
+            className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition duration-200"
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </Button>
+        </Form.Item>
+
+        <p className="text-center text-gray-600 mt-4">
+          Not registered? Contact management.
+        </p>
+      </Form>
     </div>
   );
-};
+}
 
 export default Login;

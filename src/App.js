@@ -1,11 +1,11 @@
-import './App.css';
-import Approuter from './config/router/Approuter';
+import Approuter from "./config/router/approuter";
+
 
 function App() {
   return (
-    <>
-   <Approuter/>
-   </>
+    <div>
+    <Approuter/>
+    </div>
   );
 }
 
